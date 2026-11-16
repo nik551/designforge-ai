@@ -2,11 +2,12 @@ import { StrictMode, useEffect, useMemo, useState, type FormEvent } from "react"
 import { createRoot } from "react-dom/client";
 import { ArrowUp, Box, Check, CircleAlert, Download, Layers3, LoaderCircle, Monitor, Plus, ScanLine, Smartphone, Sparkles, WandSparkles } from "lucide-react";
 import { designSchema, review, stateNames, walk, type Design } from "../shared/design.ts";
-import { demoStateEdit, demoStackEdit, examples, starter } from "../shared/demo.ts";
+import { demoStateEdit, demoStackEdit, examples, runDemo, starter } from "../shared/demo.ts";
 import { Button } from "./ui/button";
 import { Preview } from "./Preview";
 import "./styles.css";
 
+const staticDemo = import.meta.env.MODE === "pages";
 const storageKey = "designforge:v1";
 function restore(): Design | null {
   try {
@@ -22,13 +23,14 @@ function App() {
   const [prompt, setPrompt] = useState("");
   const [mobile, setMobile] = useState(false);
   const [state, setState] = useState<"default" | keyof Design["states"]>("default");
-  const [mode, setMode] = useState<"demo" | "openai" | "groq" | null>(null);
+  const [mode, setMode] = useState<"demo" | "openai" | "groq" | null>(staticDemo ? "demo" : null);
   const [feedback, setFeedback] = useState("");
   const [failure, setFailure] = useState<{ message: string; text: string; current: Design | null } | null>(null);
   const [busy, setBusy] = useState(false);
   const report = useMemo(() => design ? review(design) : null, [design]);
   const nodeCount = design ? [...walk(design.blocks)].length : 0;
   useEffect(() => {
+    if (staticDemo) return;
     const controller = new AbortController();
     fetch("/api/health", { signal: controller.signal }).then(res => res.json())
       .then(({ mode }) => { if (mode === "demo" || mode === "openai" || mode === "groq") setMode(mode); }).catch(() => {});
@@ -45,16 +47,25 @@ function App() {
     setFailure(null);
     setFeedback("");
     try {
-      const response = await fetch("/api/design", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: text, current }),
-        signal: AbortSignal.timeout(80_000),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Design generation failed. Try again.");
-      const next = designSchema.parse(result.design);
-      setMode(result.mode);
+      let next: Design;
+      if (staticDemo) {
+        const candidate = runDemo({ prompt: text.trim(), current });
+        if (!candidate) {
+          throw new Error("Demo mode supports the examples and two edits: “Add missing states” and “Stack the layout for mobile.”");
+        }
+        next = designSchema.parse(candidate);
+      } else {
+        const response = await fetch("/api/design", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: text, current }),
+          signal: AbortSignal.timeout(80_000),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Design generation failed. Try again.");
+        next = designSchema.parse(result.design);
+        setMode(result.mode);
+      }
       setDesign(next);
       setState("default");
       setPrompt("");

@@ -31,7 +31,7 @@ flowchart LR
 - React, TypeScript, Vite, Tailwind and a local shadcn/ui-style button primitive power the three-panel workspace. A closed registry renders heading, paragraph, card, stat, button, input, table, badge, divider, and container nodes.
 - Express sends a strict JSON Schema derived from Zod to [Groq Chat Completions](https://console.groq.com/docs/structured-outputs) or the [OpenAI Responses API](https://developers.openai.com/api/docs/guides/structured-outputs). The model receives the current design for edits and returns a full updated screen. Repair runs once for malformed, incomplete, or invalid output.
 - Zod rejects unknown components, properties, token variants, duplicate IDs, and malformed tables. QA flags missing loading, empty, and error copy, skipped heading levels, unlabeled inputs or buttons, and missing table captions. React renders text through fixed components. Generation never executes model output.
-- The API serves the frontend from the same origin in production. Requests have body, rate, time, output, and concurrent generation limits. Provider responses and request bodies are excluded from application logs. Prompts and current screen JSON are sent to the configured model provider when live generation is enabled.
+- On Render, the API serves the frontend from the same origin. Requests have body, rate, time, output, and concurrent generation limits. Provider responses and request bodies are excluded from application logs. Prompts and current screen JSON are sent to the configured model provider when live generation is enabled.
 
 ## Verify
 
@@ -46,6 +46,12 @@ The tests cover all demo presets, edits, deterministic QA, schema rejection, rep
 On November 16, 2026, GPT-OSS 20B on Groq passed 10/10 live cases. Five new dashboards passed QA, the metric rename preserved every other field, and all four out-of-scope requests were declined. Across the six accepted outputs, p50 was 1.18 s and p95 was 2.98 s, excluding about 209 s of rate-limit waits across the run. Results are from a single run.
 
 ## Deploy
+
+### GitHub Pages demo
+
+Push this repository to GitHub, then select **Settings → Pages → Build and deployment → Source → GitHub Actions**. Run **Deploy GitHub Pages** from the Actions tab if the initial push happened before Pages was enabled. The workflow builds the static demo with the repository’s Pages base path. The public demo supports presets, state repair, mobile layout edits, previews, autosave and JSON export. It runs entirely in the browser and uses no API keys.
+
+### Full application on Render
 
 1. Push this directory to a GitHub repository.
 2. In Render, create a Blueprint pointing to your repository. The included `render.yaml` builds and serves the Vite frontend and Express API in one web service with `/api/health` as its health check. See the [Render Blueprint reference](https://render.com/docs/blueprint-spec).
