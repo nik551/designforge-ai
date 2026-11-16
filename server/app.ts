@@ -4,11 +4,12 @@ import { rateLimit } from "express-rate-limit";
 import { resolve } from "node:path";
 import { requestSchema } from "../shared/design.ts";
 import { runDemo } from "../shared/demo.ts";
-import { generate, GenerationError } from "./generate.ts";
+import { generate, GenerationError, type Provider } from "./generate.ts";
 
-export function createApp({ key, model = "gpt-4.1-mini", trustProxy = false }: {
+export function createApp({ key, model = "gpt-4.1-mini", provider = "openai", trustProxy = false }: {
   key?: string;
   model?: string;
+  provider?: Provider;
   trustProxy?: boolean;
 } = {}) {
   const app = express();
@@ -21,7 +22,7 @@ export function createApp({ key, model = "gpt-4.1-mini", trustProxy = false }: {
     res.set("Cache-Control", "no-store");
     next();
   });
-  app.get("/api/health", (_req, res) => res.json({ ok: true, mode: key ? "openai" : "demo" }));
+  app.get("/api/health", (_req, res) => res.json({ ok: true, mode: key ? provider : "demo" }));
   app.post("/api/design",
     rateLimit({ windowMs: 60_000, limit: 8, standardHeaders: "draft-8", legacyHeaders: false,
       message: { error: "Too many requests. Try again in a minute." } }),
@@ -47,7 +48,7 @@ export function createApp({ key, model = "gpt-4.1-mini", trustProxy = false }: {
       }
       active++;
       try {
-        res.json({ design: await generate(request.data, { key, model }), mode: "openai" });
+        res.json({ design: await generate(request.data, { key, model, provider }), mode: provider });
       } catch (error) {
         if (error instanceof GenerationError) {
           res.status(error.status).json({ error: error.message });

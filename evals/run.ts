@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 import { performance } from "node:perf_hooks";
 import { designSchema, review, walk, type Design, type DesignRequest } from "../shared/design.ts";
 import { demoStackEdit, demoStateEdit, examples, runDemo, starter } from "../shared/demo.ts";
-import { dashboardScopeMessage, generate, GenerationError } from "../server/generate.ts";
+import { dashboardScopeMessage, generate, generationConfig, GenerationError } from "../server/generate.ts";
 
 type Evaluation = DesignRequest & {
   name: string;
@@ -60,13 +60,12 @@ const live: Evaluation[] = [
 ];
 
 const useLive = process.argv.includes("--live");
-const key = process.env.OPENAI_API_KEY?.trim();
-if (useLive && !key) {
-  console.error("Set OPENAI_API_KEY in .env before running the live dashboard eval.");
+const config = generationConfig();
+if (useLive && !config) {
+  console.error("Set GROQ_API_KEY or OPENAI_API_KEY in .env before running the live dashboard eval.");
   process.exit(1);
 }
 
-const config = { key: key ?? "", model: process.env.OPENAI_MODEL?.trim() || "gpt-4.1-mini" };
 const cases = useLive ? live : offline;
 const results = [];
 for (const { name, check, prompt, current } of cases) {
@@ -74,7 +73,7 @@ for (const { name, check, prompt, current } of cases) {
   let design: Design | null = null;
   let failure: string | undefined;
   try {
-    if (useLive) {
+    if (useLive && config) {
       design = await generate({ prompt, current }, config);
     } else {
       const candidate = runDemo({ prompt, current });
@@ -97,7 +96,8 @@ const percentile = (fraction: number) => times[Math.ceil(times.length * fraction
 const passed = results.filter(result => result.passed).length;
 console.log(JSON.stringify({
   mode: useLive ? "live" : "offline",
-  model: useLive ? config.model : undefined,
+  provider: useLive ? config?.provider : undefined,
+  model: useLive ? config?.model : undefined,
   passed,
   total: cases.length,
   p50Ms: percentile(0.5),

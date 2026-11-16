@@ -18,7 +18,7 @@ button:enabled { cursor: pointer; }
 .brand-ai { color: #6740d8; margin-left: -4px; }
 .mode { color: var(--color-muted); font-size: 12px; font-weight: 600; margin-right: 9px; }
 .mode span, .brand-dot { background: #845cf5; width: 7px; height: 7px; border-radius: 50%; flex: none; }
-.mode.openai span { background: #22886a; }
+.mode.openai span, .mode.groq span { background: #22886a; }
 .workspace { min-height: calc(100dvh - 65px); display: grid; grid-template-columns: minmax(230px, 265px) minmax(0, 1fr) minmax(220px, 252px); }
 .pane { min-width: 0; }
 .assistant, .inspector { background: #fff; }

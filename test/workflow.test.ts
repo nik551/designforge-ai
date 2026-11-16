@@ -108,3 +108,18 @@ test("a dashboard response needs a stat or table; a rejection must have no desig
   }), (error: unknown) => error instanceof GenerationError && error.status === 502);
   assert.equal(calls, 2);
 });
+
+test("Groq sends strict JSON Schema and parses a validated dashboard", async () => {
+  const design = await generate(request, { ...config, provider: "groq", model: "openai/gpt-oss-20b" }, async (url, options) => {
+    assert.equal(url, "https://api.groq.com/openai/v1/chat/completions");
+    const body = JSON.parse(String(options?.body));
+    assert.equal(body.response_format.type, "json_schema");
+    assert.equal(body.response_format.json_schema.strict, true);
+    assert.deepEqual(JSON.parse(body.messages[1].content).current, starter);
+    return Response.json({ choices: [{
+      finish_reason: "stop",
+      message: { content: JSON.stringify({ decision: "dashboard", design: starter }) },
+    }] });
+  });
+  assert.deepEqual(design, starter);
+});

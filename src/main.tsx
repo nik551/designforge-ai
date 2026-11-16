@@ -22,7 +22,7 @@ function App() {
   const [prompt, setPrompt] = useState("");
   const [mobile, setMobile] = useState(false);
   const [state, setState] = useState<"default" | keyof Design["states"]>("default");
-  const [mode, setMode] = useState<"demo" | "openai" | null>(null);
+  const [mode, setMode] = useState<"demo" | "openai" | "groq" | null>(null);
   const [feedback, setFeedback] = useState("");
   const [failure, setFailure] = useState<{ message: string; text: string; current: Design | null } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -31,7 +31,7 @@ function App() {
   useEffect(() => {
     const controller = new AbortController();
     fetch("/api/health", { signal: controller.signal }).then(res => res.json())
-      .then(({ mode }) => { if (mode === "demo" || mode === "openai") setMode(mode); }).catch(() => {});
+      .then(({ mode }) => { if (mode === "demo" || mode === "openai" || mode === "groq") setMode(mode); }).catch(() => {});
     return () => controller.abort();
   }, []);
   useEffect(() => {
@@ -94,7 +94,7 @@ function App() {
     <header className="topbar">
       <div className="brand"><span className="brand-icon"><Layers3 size={19} /></span>DesignForge <span className="brand-ai">AI</span></div>
       <div className="top-actions">
-        {mode && <span className={`mode ${mode}`}><span />{mode === "openai" ? "OpenAI connected" : "Demo mode"}</span>}
+        {mode && <span className={`mode ${mode}`}><span />{mode === "groq" ? "Groq configured" : mode === "openai" ? "OpenAI configured" : "Demo mode"}</span>}
         <Button variant="ghost" onClick={reset} disabled={busy}><Plus size={16} /> New dashboard</Button>
         <Button onClick={exportDesign} disabled={!design}><Download size={15} /> Export JSON</Button>
       </div>

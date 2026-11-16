@@ -13,7 +13,7 @@ npm run dev
 
 Open the local URL printed by Vite. The starter merchant dashboard works in demo mode. Select an example to generate a preset, choose **Mobile** and **State** to inspect it, then select **Fix issues** to add missing states. **Export JSON** downloads the updated design. The last screen is kept in the current browser.
 
-For custom dashboard prompts, create a secret key in the [OpenAI Platform](https://platform.openai.com/api-keys). Copy `.env.example` to `.env` if needed, set `OPENAI_API_KEY` in `.env`, and restart development. Keep the key in a server environment variable, with no `VITE_` prefix. For a fresh design, select **New dashboard** and describe a dashboard with metrics, records, or activity. For a follow-up, enter a request while a design is open.
+For custom dashboard prompts, set `GROQ_API_KEY` or `OPENAI_API_KEY` in `.env` and restart development. When both keys are set, Groq is used. The default Groq model is GPT-OSS 20B. Keep the key in a server environment variable, with no `VITE_` prefix. For a fresh design, select **New dashboard** and describe a dashboard with metrics, records, or activity. For a follow-up, enter a request while a design is open.
 
 ## Architecture
 
@@ -29,9 +29,9 @@ flowchart LR
 ```
 
 - React, TypeScript, Vite, Tailwind and a local shadcn/ui-style button primitive power the three-panel workspace. A closed registry renders heading, paragraph, card, stat, button, input, table, badge, divider, and container nodes.
-- Express sends a strict JSON Schema derived from Zod to the [OpenAI Responses API](https://developers.openai.com/api/docs/guides/structured-outputs). The model receives the current design for edits and returns a full updated screen. Repair runs once for malformed, incomplete, or invalid output.
+- Express sends a strict JSON Schema derived from Zod to [Groq Chat Completions](https://console.groq.com/docs/structured-outputs) or the [OpenAI Responses API](https://developers.openai.com/api/docs/guides/structured-outputs). The model receives the current design for edits and returns a full updated screen. Repair runs once for malformed, incomplete, or invalid output.
 - Zod rejects unknown components, properties, token variants, duplicate IDs, and malformed tables. QA flags missing loading, empty, and error copy, skipped heading levels, unlabeled inputs or buttons, and missing table captions. React renders text through fixed components. Generation never executes model output.
-- The API serves the frontend from the same origin in production. Requests have body, rate, time, output, and concurrent generation limits. Provider responses and request bodies are excluded from application logs. Prompts and current screen JSON are sent to OpenAI when live generation is enabled.
+- The API serves the frontend from the same origin in production. Requests have body, rate, time, output, and concurrent generation limits. Provider responses and request bodies are excluded from application logs. Prompts and current screen JSON are sent to the configured model provider when live generation is enabled.
 
 ## Verify
 
@@ -48,7 +48,7 @@ The tests cover all demo presets, edits, deterministic QA, schema rejection, rep
 1. Push this directory to a GitHub repository.
 2. In Render, create a Blueprint pointing to your repository. The included `render.yaml` builds and serves the Vite frontend and Express API in one web service with `/api/health` as its health check. See the [Render Blueprint reference](https://render.com/docs/blueprint-spec).
 3. Open the deployment URL and verify the example, mobile view, QA repair, and JSON download. The service starts in demo mode.
-4. To enable live generation on a restricted or private deployment, set `OPENAI_API_KEY` in the service environment. Use a dedicated API project and monitor usage. The in-memory throttles reset on restart and are not an account-level spending limit.
+4. To enable live generation on a restricted or private deployment, set `GROQ_API_KEY` or `OPENAI_API_KEY` in the service environment. Use a dedicated API project and monitor usage. The in-memory throttles reset on restart and are not an account-level spending limit.
 
 For a local production preview, run `npm run build` and `npm start`, then open http://127.0.0.1:3001.
 
