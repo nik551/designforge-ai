@@ -1,3 +1,4 @@
+import { setTimeout as wait } from "node:timers/promises";
 import { isDeepStrictEqual } from "node:util";
 import { performance } from "node:perf_hooks";
 import { designSchema, review, walk, type Design, type DesignRequest } from "../shared/design.ts";
@@ -72,9 +73,21 @@ for (const { name, check, prompt, current } of cases) {
   const started = performance.now();
   let design: Design | null = null;
   let failure: string | undefined;
+  let throttleWaitMs = 0;
+  const pacedTransport: typeof fetch = async (url, options) => {
+    for (let attempt = 0; ; attempt++) {
+      const response = await fetch(url, { ...options, signal: AbortSignal.timeout(35_000) });
+      const retrySeconds = Number(response.headers.get("retry-after"));
+      if (response.status !== 429 || attempt >= 2 || !(retrySeconds > 0 && retrySeconds <= 60)) return response;
+      await response.body?.cancel();
+      const waitStarted = performance.now();
+      await wait(Math.ceil(retrySeconds * 1000) + 500);
+      throttleWaitMs += performance.now() - waitStarted;
+    }
+  };
   try {
     if (useLive && config) {
-      design = await generate({ prompt, current }, config);
+      design = await generate({ prompt, current }, config, config.provider === "groq" ? pacedTransport : fetch);
     } else {
       const candidate = runDemo({ prompt, current });
       design = candidate === null ? null : designSchema.parse(candidate);
@@ -86,9 +99,12 @@ for (const { name, check, prompt, current } of cases) {
   }
   results.push({
     name, passed: !failure && check(design), outcome: failure ? "error" : design ? "generated" : "declined",
-    ms: Math.round(performance.now() - started), qaIssues: design ? review(design).issues.map(issue => issue.message) : undefined,
+    ms: Math.round(performance.now() - started - throttleWaitMs),
+    throttleWaitMs: throttleWaitMs ? Math.round(throttleWaitMs) : undefined,
+    qaIssues: design ? review(design).issues.map(issue => issue.message) : undefined,
     failure,
   });
+  if (useLive) console.error(`[${results.length}/${cases.length}] ${name}: ${results.at(-1)?.passed ? "pass" : "fail"}`);
 }
 
 const times = results.filter(result => result.outcome === "generated").map(result => result.ms).sort((a, b) => a - b);

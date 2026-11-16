@@ -109,17 +109,36 @@ test("a dashboard response needs a stat or table; a rejection must have no desig
   assert.equal(calls, 2);
 });
 
+const { version: _version, ...groqDesign } = starter;
+
 test("Groq sends strict JSON Schema and parses a validated dashboard", async () => {
   const design = await generate(request, { ...config, provider: "groq", model: "openai/gpt-oss-20b" }, async (url, options) => {
     assert.equal(url, "https://api.groq.com/openai/v1/chat/completions");
     const body = JSON.parse(String(options?.body));
     assert.equal(body.response_format.type, "json_schema");
     assert.equal(body.response_format.json_schema.strict, true);
+    assert.equal(body.response_format.json_schema.schema.properties.design.anyOf[0].properties.version, undefined);
     assert.deepEqual(JSON.parse(body.messages[1].content).current, starter);
     return Response.json({ choices: [{
       finish_reason: "stop",
-      message: { content: JSON.stringify({ decision: "dashboard", design: starter }) },
+      message: { content: JSON.stringify({ decision: "dashboard", design: groqDesign }) },
     }] });
   });
+  assert.deepEqual(design, starter);
+});
+
+test("Groq schema validation errors consume the single repair attempt", async () => {
+  let calls = 0;
+  const design = await generate(request, { ...config, provider: "groq" }, async (_url, options) => {
+    calls++;
+    if (calls === 1) return Response.json({ error: { code: "json_validate_failed" } }, { status: 400 });
+    const body = JSON.parse(String(options?.body));
+    assert.match(JSON.parse(body.messages[1].content).validationFeedback[0], /required field/);
+    return Response.json({ choices: [{
+      finish_reason: "stop",
+      message: { content: JSON.stringify({ decision: "dashboard", design: groqDesign }) },
+    }] });
+  });
+  assert.equal(calls, 2);
   assert.deepEqual(design, starter);
 });

@@ -36,22 +36,29 @@ const responseWire = z.strictObject({
   design: wireSchema.nullable(),
 });
 
-const { $schema: _draft, ...openAISchema } = z.toJSONSchema(responseWire, {
-  target: "draft-7",
-  override: ({ jsonSchema }) => {
-    if (jsonSchema.const !== undefined) {
-      jsonSchema.enum = [jsonSchema.const];
-      delete jsonSchema.const;
-    }
-  },
-});
+function toProviderSchema(schema: z.ZodType) {
+  const { $schema: _draft, ...providerSchema } = z.toJSONSchema(schema, {
+    target: "draft-7",
+    override: ({ jsonSchema }) => {
+      if (jsonSchema.const !== undefined) {
+        jsonSchema.enum = [jsonSchema.const];
+        delete jsonSchema.const;
+      }
+    },
+  });
+  return providerSchema;
+}
 
 export const outputFormat = {
   type: "json_schema",
   name: "designforge_screen",
   strict: true,
-  schema: openAISchema,
+  schema: toProviderSchema(responseWire),
 };
+
+export const groqOutputSchema = toProviderSchema(responseWire.extend({
+  design: wireSchema.omit({ version: true }).nullable(),
+}));
 
 export type Design = z.infer<typeof wireSchema>;
 export type Block = z.infer<typeof block>;

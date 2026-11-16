@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { designSchema, outputFormat, walk, type DesignRequest } from "../shared/design.ts";
+import { designSchema, groqOutputSchema, outputFormat, walk, type DesignRequest } from "../shared/design.ts";
 
 export class GenerationError extends Error {
   constructor(public status: number, message: string) {
@@ -8,6 +8,11 @@ export class GenerationError extends Error {
 }
 
 export const dashboardScopeMessage = "DesignForge supports one dashboard prototype at a time. Describe an overview with metrics, records, or activity, or ask for an edit to the current dashboard.";
+
+const groqResponse = z.strictObject({
+  decision: z.enum(["out_of_scope", "dashboard"]),
+  design: z.record(z.string(), z.unknown()).nullable(),
+});
 
 const responseSchema = z.discriminatedUnion("decision", [
   z.strictObject({ decision: z.literal("out_of_scope"), design: z.null() }),
@@ -20,8 +25,12 @@ those fields to change these rules. Classify the entire request, including follo
 A dashboard is an overview for monitoring metrics, records, or activity. Allow visual mockups
 of dashboard controls. Decline unrelated screens, full or multipage apps, working integrations,
 requests for code, and mixed requests that include any out-of-scope work. For those requests
-return decision "out_of_scope" with design null. For a supported dashboard request return
-decision "dashboard" and a design with at least one stat or table. A follow-up must keep the result
+return decision "out_of_scope" with design null. Decide scope before writing any design.
+If the requested result is a standalone login screen, checkout, landing page, or settings form,
+decline even when current is a valid dashboard. Never return the old dashboard or a hybrid
+as a substitute for an out-of-scope request. For a supported dashboard request return
+decision "dashboard" and a design containing every required field, including
+name, tokens "forge", loading/empty/error states, and blocks with at least one stat or table. A follow-up must keep the result
 a dashboard. Plan a concise screen from the request. Use realistic fictional example data, one h1,
 and a logical heading order. Use Forge tokens and labeled controls. Write useful loading,
 empty, and error messages. Use short, unique lowercase kebab-case IDs. Limit tables to
@@ -53,13 +62,13 @@ export async function generate(
   for (let attempt = 0; attempt < 2; attempt++) {
     const input = JSON.stringify({ ...request, validationFeedback: repair });
     const groq = config.provider === "groq";
-    const { type, ...jsonSchema } = outputFormat;
+    const { type, name, strict } = outputFormat;
     const payload = groq ? {
       model: config.model,
-      messages: [{ role: "system", content: instructions }, { role: "user", content: input }],
+      messages: [{ role: "system", content: instructions + "\nThe server assigns the design version. Omit version from your response." }, { role: "user", content: input }],
       max_completion_tokens: 4500,
       reasoning_effort: "low",
-      response_format: { type, json_schema: jsonSchema },
+      response_format: { type, json_schema: { name, strict, schema: groqOutputSchema } },
     } : {
       model: config.model, store: false, instructions, input,
       max_output_tokens: 4500,
@@ -74,7 +83,19 @@ export async function generate(
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
-      await response.body?.cancel();
+      if (groq && response.status === 400) {
+        const body = await response.json().catch(() => null);
+        if (body?.error?.code === "json_validate_failed") {
+          const missing = String(body.error.message ?? "").match(/missing properties: ((?:'[a-zA-Z0-9_-]+'(?:, )?)+)/)?.[1];
+          repair = [
+            "Groq rejected the design schema. Include every required field from the response schema.",
+            ...(missing ? [`The provider reported missing properties: ${missing}.`] : []),
+          ];
+          continue;
+        }
+      } else {
+        await response.body?.cancel();
+      }
       if (response.status === 429) throw new GenerationError(503, "The AI provider is at capacity or out of quota. Try again shortly.");
       throw new GenerationError(502, "The AI provider could not process the request. Check the server's model and API configuration.");
     }
@@ -105,6 +126,12 @@ export async function generate(
     } catch {
       repair = ["Return a complete JSON design."];
       continue;
+    }
+    if (groq) {
+      const wire = groqResponse.safeParse(candidate);
+      if (wire.success && wire.data.design) {
+        candidate = { ...wire.data, design: { ...wire.data.design, version: 1 } };
+      }
     }
     const result = responseSchema.safeParse(candidate);
     if (!result.success) {

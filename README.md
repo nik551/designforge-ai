@@ -41,7 +41,9 @@ npm run build
 npm run eval
 ```
 
-The tests cover all demo presets, edits, deterministic QA, schema rejection, repair, provider refusals, API validation and throttling. GitHub Actions runs the tests and production build. The default eval runs eight offline cases without an API key and checks preset quality, edit behavior, and demo rejections. Run `npm run eval -- --live` for ten live cases that check generation, edit preservation, QA, and scope rejection. The live run makes billable requests and requires a server-side key. Live benchmark results are pending.
+The tests cover all demo presets, edits, deterministic QA, schema rejection, repair, provider refusals, API validation and throttling. GitHub Actions runs the tests and production build. The default eval runs eight offline cases without an API key and checks preset quality, edit behavior, and demo rejections. Run `npm run eval -- --live` for ten live cases that check generation, edit preservation, QA, and scope rejection. The live run requires a server-side key and counts against that provider’s quota. The Groq eval honors short rate-limit waits and reports them separately from generation latency.
+
+On November 16, 2026, GPT-OSS 20B on Groq passed 10/10 live cases. Five new dashboards passed QA, the metric rename preserved every other field, and all four out-of-scope requests were declined. Across the six accepted outputs, p50 was 1.18 s and p95 was 2.98 s, excluding about 209 s of rate-limit waits across the run. Results are from a single run.
 
 ## Deploy
 
